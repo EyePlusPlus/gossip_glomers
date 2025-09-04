@@ -41,6 +41,10 @@ func main() {
 			data = append(data, int(msgInt))
 		}
 
+		if msgFloat, ok := body["message"].(float64); ok {
+			data = append(data, int(msgFloat))
+		}
+
 		// appendToFile(file, string(msg.Body))
 
 		res := map[string]string{"type": "broadcast_ok"}
