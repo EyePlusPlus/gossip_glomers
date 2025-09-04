@@ -1,9 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 
@@ -14,43 +14,54 @@ const (
 	key = "GLOBAL_COUNTER"
 )
 
-func appendToFile(file, data) {
+func appendToFile(file *os.File, data string) {
 	if _, err := file.WriteString(data + "\n"); err != nil {
 		fmt.Printf("Error writing to file\n", err)
 		return
 	}
 }
 
-func storeValue(kv maelstrom.KV, value int) bool {
-	counter, err := kv.Read(key)
+func storeValue(kv *maelstrom.KV, ctx context.Context, value int) (bool, error) {
+	counter, err := kv.ReadInt(ctx, key)
 	if err != nil {
-		log.Fatal("Reading from kv failed", err)
-		return false
+		return false, err
 	}
 
 	newValue := counter + value
 
-	if err := kv.CompareAndSwap(key, counter, newValue, true); err != nil {
-		log.Fatal("Failed to compare and swap the value", err)
-		return false
+	if err := kv.CompareAndSwap(ctx, key, counter, newValue, true); err != nil {
+		return false, err
 	}
 
-	return true
+	return true, nil
 
+}
+
+func getValue(kv *maelstrom.KV, ctx context.Context) (int, error) {
+	counter, err := kv.ReadInt(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+
+	return counter, nil
 }
 
 func main() {
 	n := maelstrom.NewNode()
-	kv := maelstrom.NewKV(n)
+	kv := maelstrom.NewSeqKV(n)
+	ctx := context.Background()
+
 	file, err := os.OpenFile("/tmp/maelstrom-g-counter.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Printf("Error opening file", err)
 		return
 	}
 
+	defer file.Close()
+
 	n.Handle("add", func(msg maelstrom.Message) error {
 		var body map[string]any
-		appendToFile(file, "addHandler:  Received msg: "+msg)
+		appendToFile(file, "addHandler:  Received msg: "+string(msg.Body))
 
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
@@ -68,7 +79,7 @@ func main() {
 
 		appendToFile(file, "addHandler:  delta value: "+strconv.Itoa(value))
 
-		success := storeValue(kv, value)
+		success, _ := storeValue(kv, ctx, value)
 		if !success {
 			appendToFile(file, "addHandler: storing value failed")
 		}
@@ -84,5 +95,14 @@ func main() {
 
 		appendToFile(file, fmt.Sprintf("addHandler:  Response: ", res))
 		return n.Reply(msg, res)
+	})
+
+	n.Handle("read", func(msg maelstrom.Message) error {
+		var body map[string]any
+
+		body["type"] = "read_ok"
+		body["value"], _ = getValue(kv, ctx)
+
+		return n.Reply(msg, body)
 	})
 }
