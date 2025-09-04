@@ -12,6 +12,13 @@ import (
 
 type TopologyResponse map[string][]string
 
+type InitMessage struct {
+	Type    string   `json:"type"`
+	NodeID  string   `json:"node_id"`
+	NodeIDs []string `json:"node_ids"`
+	MsgID   int      `json:"msg_id"`
+}
+
 func appendToFile(file *os.File, data string) {
 	if _, err := file.WriteString(data + "\n"); err != nil {
 		fmt.Printf("Error writing to file\n", err)
@@ -56,7 +63,6 @@ func main() {
 	var node_id string
 
 	var node_ids []string
-	_ = node_ids
 
 	file, err := os.OpenFile("/tmp/maelstrom-g-counter.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -67,19 +73,22 @@ func main() {
 	defer file.Close()
 
 	n.Handle("init", func(msg maelstrom.Message) error {
-		var body map[string]any
-		if err := json.Unmarshal(msg.Body, &body); err != nil {
+		var initMsg InitMessage
+		if err := json.Unmarshal(msg.Body, &initMsg); err != nil {
 			return err
 		}
 
-		appendToFile(file, "initHandler: response"+string(msg.Body))
+		// appendToFile(file, "initHandler: response"+string(msg.Body))
 
-		body["type"] = "init_ok"
-		node_id = body["node_id"].(string)
-		if nodeIDs, ok := body["node_ids"].([]string); ok {
-			node_ids = nodeIDs
-		} else {
-			appendToFile(file, "initHandler: Failed to assert type"+string(msg.Body))
+		node_id = initMsg.NodeID
+		node_ids = initMsg.NodeIDs
+
+		if len(node_ids) == 0 {
+			appendToFile(file, "initHandler: No nodeids found")
+		}
+
+		body := map[string]any{
+			"type": "init_ok",
 		}
 
 		return n.Reply(msg, body)
