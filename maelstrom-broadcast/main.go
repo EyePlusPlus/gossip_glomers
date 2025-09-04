@@ -41,7 +41,7 @@ func main() {
 			data = append(data, int(msgInt))
 		}
 
-		appendToFile(file, string(msg.Body))
+		// appendToFile(file, string(msg.Body))
 
 		res := map[string]string{"type": "broadcast_ok"}
 
@@ -55,7 +55,7 @@ func main() {
 			return err
 		}
 
-		appendToFile(file, string(msg.Body))
+		// appendToFile(file, string(msg.Body))
 
 		body["type"] = "read_ok"
 		body["messages"] = data
@@ -70,29 +70,12 @@ func main() {
 			return err
 		}
 
-		appendToFile(file, string(msg.Body))
+		// appendToFile(file, string(msg.Body))
 
 		res := map[string]string{"type": "topology_ok"}
 
 		return n.Reply(msg, res)
 	})
-
-	// n.Handle("workload", func(msg maelstrom.Message) error {
-	// 	var body map[string]any
-
-	// 	if err := json.Unmarshal(msg.Body, &body); err != nil {
-	// 		return err
-	// 	}
-	// 	res := map[string]string{"type": "workload_ok"}
-
-	// 	data := []byte(msg.Body)
-	// 	err := os.WriteFile("/tmp/maelstrom-broadcast.log", data, 0644)
-	// 	if err != nil {
-	// 		log.Fatal("failed to write", err)
-	// 	}
-
-	// 	return n.Reply(msg, res)
-	// })
 
 	if err := n.Run(); err != nil {
 		log.Fatal(err)
