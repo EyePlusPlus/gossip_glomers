@@ -25,7 +25,7 @@ func appendToFile(file *os.File, data string) {
 func storeValue(kv *maelstrom.KV, ctx context.Context, value int) (bool, error) {
 	counter, err := kv.ReadInt(ctx, key)
 	if err != nil {
-		return false, err
+		counter = 0
 	}
 
 	newValue := counter + value
@@ -105,15 +105,18 @@ func main() {
 
 	n.Handle("read", func(msg maelstrom.Message) error {
 		appendToFile(file, "Received read msg")
-		var body map[string]any
+		body := make(map[string]any)
 		appendToFile(file, "readHandler:  Received msg: "+string(msg.Body))
 
 		body["type"] = "read_ok"
-		body["value"], err = getValue(kv, ctx)
-		appendToFile(file, "readHandler: getValue error"+err.Error())
-		if err != nil {
-		}
+		val, err := getValue(kv, ctx)
+		body["value"] = val
 
+		if err != nil {
+			appendToFile(file, "readHandler: getValue error"+err.Error())
+		} else {
+			appendToFile(file, "readHandler: getValue value"+strconv.Itoa(val))
+		}
 		return n.Reply(msg, body)
 	})
 
