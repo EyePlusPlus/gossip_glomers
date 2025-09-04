@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 
@@ -60,6 +61,8 @@ func main() {
 	defer file.Close()
 
 	n.Handle("add", func(msg maelstrom.Message) error {
+		appendToFile(file, "Received add msg")
+
 		var body map[string]any
 		appendToFile(file, "addHandler:  Received msg: "+string(msg.Body))
 
@@ -79,7 +82,10 @@ func main() {
 
 		appendToFile(file, "addHandler:  delta value: "+strconv.Itoa(value))
 
-		success, _ := storeValue(kv, ctx, value)
+		success, err := storeValue(kv, ctx, value)
+		if err != nil {
+			appendToFile(file, "addHandler: storeValue error"+err.Error())
+		}
 		if !success {
 			appendToFile(file, "addHandler: storing value failed")
 		}
@@ -93,16 +99,26 @@ func main() {
 			"type": "add_ok",
 		}
 
-		appendToFile(file, fmt.Sprintf("addHandler:  Response: ", res))
+		appendToFile(file, fmt.Sprintf("addHandler:  Response: %s", res))
 		return n.Reply(msg, res)
 	})
 
 	n.Handle("read", func(msg maelstrom.Message) error {
+		appendToFile(file, "Received read msg")
 		var body map[string]any
+		appendToFile(file, "readHandler:  Received msg: "+string(msg.Body))
 
 		body["type"] = "read_ok"
-		body["value"], _ = getValue(kv, ctx)
+		body["value"], err = getValue(kv, ctx)
+		appendToFile(file, "readHandler: getValue error"+err.Error())
+		if err != nil {
+		}
 
 		return n.Reply(msg, body)
 	})
+
+	if err := n.Run(); err != nil {
+		log.Fatal(err)
+	}
+
 }
