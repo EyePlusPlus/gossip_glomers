@@ -11,9 +11,7 @@ import (
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
 
-const (
-	key = "GLOBAL_COUNTER"
-)
+type TopologyResponse map[string][]string
 
 func appendToFile(file *os.File, data string) {
 	if _, err := file.WriteString(data + "\n"); err != nil {
@@ -22,7 +20,7 @@ func appendToFile(file *os.File, data string) {
 	}
 }
 
-func storeValue(kv *maelstrom.KV, ctx context.Context, value int) (bool, error) {
+func storeValue(kv *maelstrom.KV, ctx context.Context, key string, value int) (bool, error) {
 	counter, err := kv.ReadInt(ctx, key)
 	if err != nil {
 		counter = 0
@@ -38,19 +36,28 @@ func storeValue(kv *maelstrom.KV, ctx context.Context, value int) (bool, error) 
 
 }
 
-func getValue(kv *maelstrom.KV, ctx context.Context) (int, error) {
-	counter, err := kv.ReadInt(ctx, key)
-	if err != nil {
-		return 0, err
+func getValue(kv *maelstrom.KV, ctx context.Context, topologyResponse TopologyResponse) (int, error) {
+	result := 0
+	for k, _ := range topologyResponse {
+		counter, err := kv.ReadInt(ctx, k)
+		if err != nil {
+			result += 0
+		} else {
+			result += counter
+		}
 	}
 
-	return counter, nil
+	return result, nil
 }
 
 func main() {
 	n := maelstrom.NewNode()
 	kv := maelstrom.NewSeqKV(n)
 	ctx := context.Background()
+
+	node_id := n.ID()
+
+	var topologyResponse TopologyResponse
 
 	file, err := os.OpenFile("/tmp/maelstrom-g-counter.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -59,6 +66,21 @@ func main() {
 	}
 
 	defer file.Close()
+
+	n.Handle("topology", func(msg maelstrom.Message) error {
+		var body map[string]any
+		if err := json.Unmarshal(msg.Body, &body); err != nil {
+			return err
+		}
+
+		topologyResponse = body["topology"].(TopologyResponse)
+
+		resp := make(map[string]any)
+		resp["type"] = "topology_ok"
+
+		return n.Reply(msg, resp)
+
+	})
 
 	n.Handle("add", func(msg maelstrom.Message) error {
 		appendToFile(file, "Received add msg")
@@ -82,7 +104,7 @@ func main() {
 
 		appendToFile(file, "addHandler:  delta value: "+strconv.Itoa(value))
 
-		success, err := storeValue(kv, ctx, value)
+		success, err := storeValue(kv, ctx, node_id, value)
 		if err != nil {
 			appendToFile(file, "addHandler: storeValue error"+err.Error())
 		}
@@ -109,7 +131,7 @@ func main() {
 		appendToFile(file, "readHandler:  Received msg: "+string(msg.Body))
 
 		body["type"] = "read_ok"
-		val, err := getValue(kv, ctx)
+		val, err := getValue(kv, ctx, topologyResponse)
 		body["value"] = val
 
 		if err != nil {
