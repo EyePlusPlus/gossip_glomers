@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
@@ -36,9 +35,9 @@ func storeValue(kv *maelstrom.KV, ctx context.Context, key string, value int) (b
 
 }
 
-func getValue(kv *maelstrom.KV, ctx context.Context, topologyResponse TopologyResponse) (int, error) {
+func getValue(kv *maelstrom.KV, ctx context.Context, node_ids []string) (int, error) {
 	result := 0
-	for k, _ := range topologyResponse {
+	for _, k := range node_ids {
 		counter, err := kv.ReadInt(ctx, k)
 		if err != nil {
 			result += 0
@@ -54,10 +53,10 @@ func main() {
 	n := maelstrom.NewNode()
 	kv := maelstrom.NewSeqKV(n)
 	ctx := context.Background()
+	var node_id string
 
-	node_id := n.ID()
-
-	var topologyResponse TopologyResponse
+	var node_ids []string
+	_ = node_ids
 
 	file, err := os.OpenFile("/tmp/maelstrom-g-counter.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -67,26 +66,27 @@ func main() {
 
 	defer file.Close()
 
-	n.Handle("topology", func(msg maelstrom.Message) error {
+	n.Handle("init", func(msg maelstrom.Message) error {
 		var body map[string]any
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
 		}
 
-		topologyResponse = body["topology"].(TopologyResponse)
+		appendToFile(file, "initHandler: response"+string(msg.Body))
 
-		resp := make(map[string]any)
-		resp["type"] = "topology_ok"
+		body["type"] = "init_ok"
+		node_id = body["node_id"].(string)
+		if nodeIDs, ok := body["node_ids"].([]string); ok {
+			node_ids = nodeIDs
+		} else {
+			appendToFile(file, "initHandler: Failed to assert type"+string(msg.Body))
+		}
 
-		return n.Reply(msg, resp)
-
+		return n.Reply(msg, body)
 	})
 
 	n.Handle("add", func(msg maelstrom.Message) error {
-		appendToFile(file, "Received add msg")
-
 		var body map[string]any
-		appendToFile(file, "addHandler:  Received msg: "+string(msg.Body))
 
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
@@ -102,45 +102,36 @@ func main() {
 			value = int(delta)
 		}
 
-		appendToFile(file, "addHandler:  delta value: "+strconv.Itoa(value))
-
-		success, err := storeValue(kv, ctx, node_id, value)
+		_, err := storeValue(kv, ctx, node_id, value)
 		if err != nil {
-			appendToFile(file, "addHandler: storeValue error"+err.Error())
+			appendToFile(file, "addHandler: ("+string(node_id)+")storeValue error"+err.Error())
 		}
-		if !success {
-			appendToFile(file, "addHandler: storing value failed")
-		}
-
-		// Extract the "delta" value from the message
-		// Read the current global counter value from kv
-		// Add the values and compareAndSwap to store the new value
-		// If the function throws an error, retry using the latest value
+		// if success {
+		// 	appendToFile(file, "addHandler: storing value succeeded, "+node_id+", "+strconv.Itoa(value))
+		// }
 
 		res := map[string]any{
 			"type": "add_ok",
 		}
 
-		appendToFile(file, fmt.Sprintf("addHandler:  Response: %s", res))
+		// appendToFile(file, fmt.Sprintf("addHandler:  Response: %s", res))
 		return n.Reply(msg, res)
 	})
 
-	n.Handle("read", func(msg maelstrom.Message) error {
-		appendToFile(file, "Received read msg")
-		body := make(map[string]any)
-		appendToFile(file, "readHandler:  Received msg: "+string(msg.Body))
+	// n.Handle("read", func(msg maelstrom.Message) error {
+	// 	body := make(map[string]any)
 
-		body["type"] = "read_ok"
-		val, err := getValue(kv, ctx, topologyResponse)
-		body["value"] = val
+	// 	body["type"] = "read_ok"
+	// 	val, err := getValue(kv, ctx, node_ids)
+	// 	body["value"] = val
 
-		if err != nil {
-			appendToFile(file, "readHandler: getValue error"+err.Error())
-		} else {
-			appendToFile(file, "readHandler: getValue value"+strconv.Itoa(val))
-		}
-		return n.Reply(msg, body)
-	})
+	// 	if err != nil {
+	// 		appendToFile(file, "readHandler: getValue error"+err.Error())
+	// 	} else {
+	// 		appendToFile(file, "readHandler: getValue value"+strconv.Itoa(val))
+	// 	}
+	// 	return n.Reply(msg, body)
+	// })
 
 	if err := n.Run(); err != nil {
 		log.Fatal(err)
