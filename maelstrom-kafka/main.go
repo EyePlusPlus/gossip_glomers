@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"sync"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
@@ -26,8 +27,12 @@ type ListCommitesOffsetsMessage struct {
 }
 
 var repl_log = make(map[string][]int)
+var repl_log_mutex = sync.RWMutex{}
 
 func appendToLog(key string, value int) int {
+	repl_log_mutex.Lock()
+	defer repl_log_mutex.Unlock()
+
 	repl_log[key] = append(repl_log[key], value)
 	return len(repl_log[key]) - 1
 }
