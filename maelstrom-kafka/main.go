@@ -25,6 +25,13 @@ type ListCommitesOffsetsMessage struct {
 	Keys []string `json:"keys"`
 }
 
+var repl_log = make(map[string][]int)
+
+func appendToLog(key string, value int) int {
+	repl_log[key] = append(repl_log[key], value)
+	return len(repl_log[key]) - 1
+}
+
 func main() {
 	n := maelstrom.NewNode()
 
@@ -37,15 +44,15 @@ func main() {
 			return err
 		}
 
-		// key := body.Key
-		// message := body.Msg
+		key := body.Key
+		message := body.Msg
 
-		// TODO
+		offset := appendToLog(key, message)
 
 		res := make(map[string]any)
 
 		res["type"] = "send_ok"
-		res["offset"] = 0 // TODO
+		res["offset"] = offset
 
 		return n.Reply(msg, res)
 	})
