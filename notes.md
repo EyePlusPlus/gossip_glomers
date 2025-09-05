@@ -11,3 +11,34 @@ Expt: Return bad value for read
 result: Empty list in the response
 
 Solution for Broadcast challenge was to also check for float value and it worked.
+
+------
+challenge 4
+1) Is global counter common to all the nodes?
+2) Will multiple nodes receive the add operation?
+3) 
+
+
+
+
+2025-09-04 15:34:34 EDT
+Managed to get the code mostly written out. The kv operations are bonking.
+2025-09-04 15:40:26 EDT Add logs for read message and more nicer error string logging in the file
+- Read operations are failing with key not found error.
+- Solution: Assume 0 if keynotexists error occurs and proceed with cas
+
+2025-09-04 17:26:29 EDT
+- Race conditions seem to be happening, can't store the values simultaneously. But could use some retry logic.
+- Can also try keeping local counter and only using global counter to read values for other nodes. When would the write happen though?
+- Approach 1:
+    - Use node-wise key in the kv store to store the values. 
+    - Read from all nodes to get the combined values.
+    - Use topology handler to track other nodes
+
+
+2025-09-05 13:10:50 EDT
+- No logs showing up so far
+- No handler for read. Resolved
+- Remove excessive logs in read handler
+- Everything works. Need to check Eval script matches
+

@@ -21,7 +21,7 @@ type InitMessage struct {
 
 func appendToFile(file *os.File, data string) {
 	if _, err := file.WriteString(data + "\n"); err != nil {
-		fmt.Printf("Error writing to file\n", err)
+		fmt.Printf("Error writing to file: %s\n", err.Error())
 		return
 	}
 }
@@ -66,7 +66,7 @@ func main() {
 
 	file, err := os.OpenFile("/tmp/maelstrom-g-counter.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		fmt.Printf("Error opening file", err)
+		fmt.Printf("Error opening file %s", err.Error())
 		return
 	}
 
@@ -127,20 +127,18 @@ func main() {
 		return n.Reply(msg, res)
 	})
 
-	// n.Handle("read", func(msg maelstrom.Message) error {
-	// 	body := make(map[string]any)
+	n.Handle("read", func(msg maelstrom.Message) error {
+		body := make(map[string]any)
 
-	// 	body["type"] = "read_ok"
-	// 	val, err := getValue(kv, ctx, node_ids)
-	// 	body["value"] = val
+		body["type"] = "read_ok"
+		val, err := getValue(kv, ctx, node_ids)
+		body["value"] = val
 
-	// 	if err != nil {
-	// 		appendToFile(file, "readHandler: getValue error"+err.Error())
-	// 	} else {
-	// 		appendToFile(file, "readHandler: getValue value"+strconv.Itoa(val))
-	// 	}
-	// 	return n.Reply(msg, body)
-	// })
+		if err != nil {
+			appendToFile(file, "readHandler: getValue error"+err.Error())
+		}
+		return n.Reply(msg, body)
+	})
 
 	if err := n.Run(); err != nil {
 		log.Fatal(err)
