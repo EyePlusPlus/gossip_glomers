@@ -38,9 +38,15 @@ func appendToLog(key string, value int) int {
 }
 
 func readFromLog(key string, offset int) [][]int {
+	repl_log_mutex.RLock()
+	defer repl_log_mutex.RUnlock()
+
 	returnValue := make([][]int, 0)
-	for i := offset; i < len(repl_log[key]); i++ {
-		returnValue = append(returnValue, []int{i, repl_log[key][i]})
+	original := repl_log[key]
+	copiedData := make([]int, len(original))
+	copy(copiedData, original)
+	for i := offset; i < len(copiedData); i++ {
+		returnValue = append(returnValue, []int{i, copiedData[i]})
 	}
 	return returnValue
 }
@@ -112,12 +118,17 @@ func main() {
 			return err
 		}
 
-		// keys := body.Keys
+		keys := body.Keys
+		offsets := make(map[string]int)
+
+		for _, k := range keys {
+			offsets[k] = len(repl_log[k]) - 1
+		}
 
 		res := make(map[string]any)
 
 		res["type"] = "list_committed_offsets_ok"
-		res["offsets"] = nil // TODO
+		res["offsets"] = offsets
 
 		return n.Reply(msg, res)
 	})
