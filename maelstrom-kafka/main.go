@@ -32,6 +32,14 @@ func appendToLog(key string, value int) int {
 	return len(repl_log[key]) - 1
 }
 
+func readFromLog(key string, offset int) [][]int {
+	returnValue := make([][]int, 0)
+	for i := offset; i < len(repl_log[key]); i++ {
+		returnValue = append(returnValue, []int{i, repl_log[key][i]})
+	}
+	return returnValue
+}
+
 func main() {
 	n := maelstrom.NewNode()
 
@@ -63,12 +71,17 @@ func main() {
 			return err
 		}
 
-		// offsets := body.Offsets
+		offsets := body.Offsets
+		msgs := make(map[string][][]int)
+
+		for k, v := range offsets {
+			msgs[k] = readFromLog(k, v)
+		}
 
 		res := make(map[string]any)
 
 		res["type"] = "poll_ok"
-		res["msgs"] = nil // TODO
+		res["msgs"] = msgs
 
 		return n.Reply(msg, res)
 	})
