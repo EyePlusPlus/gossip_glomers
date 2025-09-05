@@ -41,4 +41,10 @@ Managed to get the code mostly written out. The kv operations are bonking.
 - No handler for read. Resolved
 - Remove excessive logs in read handler
 - Everything works. Need to check Eval script matches
+- Challenge 4 completed
+- send msg not getting parsed correctly. Resolved now
+- Figured out how to see the application code logs without writing to tmp file
+- Is offset unique for each k key?
+- Completed the challenge. Main hurdle was handling concurrent reads and writes to a map object (multithreaded programming). Using Mutex to solve it, and looks like it worked
 
+
