@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"maps"
 	"os"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
@@ -28,6 +29,7 @@ func main() {
 
 	n := maelstrom.NewNode()
 	var data []int
+	var neighbors []string
 
 	n.Handle("broadcast", func(msg maelstrom.Message) error {
 		var body map[string]any
@@ -36,16 +38,17 @@ func main() {
 			return err
 		}
 
-		body["type"] = "broadcast_ok"
-		if msgInt, ok := body["message"].(int); ok {
-			data = append(data, int(msgInt))
-		}
-
+		gossip := maps.Clone(body)
+		
 		if msgFloat, ok := body["message"].(float64); ok {
 			data = append(data, int(msgFloat))
 		}
 
-		// appendToFile(file, string(msg.Body))
+		for _, nid := range neighbors {
+			if nid != msg.Src {
+				n.RPC(nid, gossip, nil)
+			}
+		}
 
 		res := map[string]string{"type": "broadcast_ok"}
 
@@ -58,8 +61,6 @@ func main() {
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
 		}
-
-		// appendToFile(file, string(msg.Body))
 
 		body["type"] = "read_ok"
 		body["messages"] = data
@@ -74,7 +75,22 @@ func main() {
 			return err
 		}
 
-		// appendToFile(file, string(msg.Body))
+		topology, ok := body["topology"].(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("malformed topology message: 'topology' field is not a map")
+		}
+
+		if neighbors_any, ok := topology[n.ID()]; ok {
+			if neighbors_interface, ok := neighbors_any.([]interface{}); ok {
+				var tempNeighbors []string
+				for _, neighbor_any := range neighbors_interface {
+					if neighbor_str, ok := neighbor_any.(string); ok {
+						tempNeighbors = append(tempNeighbors, neighbor_str)
+					}
+				}
+				neighbors = tempNeighbors
+			}
+		}
 
 		res := map[string]string{"type": "topology_ok"}
 
