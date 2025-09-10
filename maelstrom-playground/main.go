@@ -50,14 +50,16 @@ func main() {
 		// If there is another node, send it a message.
 		if dest != "" {
 			log.Printf("Node %s is sending a message to node %s", n.ID(), dest)
-			msgBody := map[string]any{
-				"type":   "test",
-				"value":  "Hello from " + n.ID(),
-				"msg_id": 1,
+			body := map[string]any{
+				"type":    "test",
+				"value":   "Hello from " + n.ID(),
+				"msg_id":  1,
 			}
+
 			// Using RPC to send and get a reply.
-			err := n.RPC(dest, msgBody, func(reply maelstrom.Message) error {
-				log.Printf("Node %s received reply from %s: %s", n.ID(), dest, reply.Body)
+			// The maelstrom library handles marshalling the body.
+			err := n.RPC(dest, body, func(reply maelstrom.Message) error {
+				log.Printf("Node %s received reply from %s: %s", n.ID(), dest, string(reply.Body))
 				return nil
 			})
 
