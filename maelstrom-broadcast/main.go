@@ -10,11 +10,8 @@ import (
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
 
-func appendToFile(file *os.File, msg string) {
-	if _, err := file.WriteString(msg + "\n"); err != nil {
-		fmt.Printf("Error writing to file: %v\n", err)
-		return
-	}
+type TopologyMessage struct {
+	Topology map[string][]string `json:"topology"`
 }
 
 func main() {
@@ -39,7 +36,7 @@ func main() {
 		}
 
 		gossip := maps.Clone(body)
-		
+
 		if msgFloat, ok := body["message"].(float64); ok {
 			data = append(data, int(msgFloat))
 		}
@@ -69,28 +66,13 @@ func main() {
 	})
 
 	n.Handle("topology", func(msg maelstrom.Message) error {
-		var body map[string]any
+		var body TopologyMessage
 
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
 		}
 
-		topology, ok := body["topology"].(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("malformed topology message: 'topology' field is not a map")
-		}
-
-		if neighbors_any, ok := topology[n.ID()]; ok {
-			if neighbors_interface, ok := neighbors_any.([]interface{}); ok {
-				var tempNeighbors []string
-				for _, neighbor_any := range neighbors_interface {
-					if neighbor_str, ok := neighbor_any.(string); ok {
-						tempNeighbors = append(tempNeighbors, neighbor_str)
-					}
-				}
-				neighbors = tempNeighbors
-			}
-		}
+		neighbors = body.Topology[n.ID()]
 
 		res := map[string]string{"type": "topology_ok"}
 
