@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"maps"
 	"os"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
@@ -12,6 +11,11 @@ import (
 
 type TopologyMessage struct {
 	Topology map[string][]string `json:"topology"`
+}
+
+type SyncMessage struct {
+	Type   string `json:"type"`
+	Values []int  `json:"values"`
 }
 
 func main() {
@@ -35,11 +39,11 @@ func main() {
 			return err
 		}
 
-		gossip := maps.Clone(body)
-
 		if msgFloat, ok := body["message"].(float64); ok {
 			data = append(data, int(msgFloat))
 		}
+
+		gossip := SyncMessage{Type: "sync", Values: data}
 
 		for _, nid := range neighbors {
 			if nid != msg.Src {
@@ -77,6 +81,18 @@ func main() {
 		res := map[string]string{"type": "topology_ok"}
 
 		return n.Reply(msg, res)
+	})
+
+	n.Handle("sync", func(msg maelstrom.Message) error {
+		var body SyncMessage
+
+		if err := json.Unmarshal(msg.Body, &body); err != nil {
+			return err
+		}
+
+		data = append(data, body.Values...)
+
+		return n.Reply(msg, map[string]any{"type": "sync_ok"})
 	})
 
 	if err := n.Run(); err != nil {
