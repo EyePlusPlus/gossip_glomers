@@ -18,6 +18,22 @@ type SyncMessage struct {
 	Values []int  `json:"values"`
 }
 
+func getValues(obj map[int]struct{}) []int {
+	var retVal []int
+	for key := range obj {
+		retVal = append(retVal, key)
+	}
+	return retVal
+}
+
+func setValues(data map[int]struct{}, values []int) map[int]struct{} {
+	for _, v := range values {
+		data[v] = struct{}{}
+	}
+
+	return data
+}
+
 func main() {
 
 	file, err := os.OpenFile("/tmp/maelstrom-broadcast.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -29,7 +45,7 @@ func main() {
 	defer file.Close()
 
 	n := maelstrom.NewNode()
-	var data []int
+	data := make(map[int]struct{})
 	var neighbors []string
 
 	n.Handle("broadcast", func(msg maelstrom.Message) error {
@@ -40,10 +56,10 @@ func main() {
 		}
 
 		if msgFloat, ok := body["message"].(float64); ok {
-			data = append(data, int(msgFloat))
+			data[int(msgFloat)] = struct{}{}
 		}
 
-		gossip := SyncMessage{Type: "sync", Values: data}
+		gossip := SyncMessage{Type: "sync", Values: getValues(data)}
 
 		for _, nid := range neighbors {
 			if nid != msg.Src {
@@ -64,7 +80,7 @@ func main() {
 		}
 
 		body["type"] = "read_ok"
-		body["messages"] = data
+		body["messages"] = getValues(data)
 
 		return n.Reply(msg, body)
 	})
@@ -90,7 +106,7 @@ func main() {
 			return err
 		}
 
-		data = append(data, body.Values...)
+		data = setValues(data, body.Values)
 
 		return n.Reply(msg, map[string]any{"type": "sync_ok"})
 	})
