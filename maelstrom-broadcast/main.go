@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/google/uuid"
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
 
@@ -16,6 +17,7 @@ type TopologyMessage struct {
 type SyncMessage struct {
 	Type   string `json:"type"`
 	Values []int  `json:"values"`
+	Id     string `json:"id"`
 }
 
 func getValues(obj map[int]struct{}) []int {
@@ -46,6 +48,7 @@ func main() {
 
 	n := maelstrom.NewNode()
 	data := make(map[int]struct{})
+	sync_ack := make(map[string]struct{})
 	var neighbors []string
 
 	n.Handle("broadcast", func(msg maelstrom.Message) error {
@@ -59,7 +62,14 @@ func main() {
 			data[int(msgFloat)] = struct{}{}
 		}
 
-		gossip := SyncMessage{Type: "sync", Values: getValues(data)}
+		sync_id, err := uuid.NewV7()
+		if err != nil {
+			return err
+		}
+
+		sync_ack[sync_id.String()] = struct{}{}
+
+		gossip := SyncMessage{Type: "sync", Values: getValues(data), Id: sync_id.String()}
 
 		for _, nid := range neighbors {
 			if nid != msg.Src {
@@ -106,7 +116,19 @@ func main() {
 			return err
 		}
 
+		if _, exists := sync_ack[body.Id]; exists {
+			return n.Reply(msg, map[string]any{"type": "sync_ok"})
+		}
+
 		data = setValues(data, body.Values)
+
+		sync_ack[body.Id] = struct{}{}
+
+		for _, nid := range neighbors {
+			if nid != msg.Src {
+				n.RPC(nid, body, nil)
+			}
+		}
 
 		return n.Reply(msg, map[string]any{"type": "sync_ok"})
 	})
