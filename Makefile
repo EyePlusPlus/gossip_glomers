@@ -1,13 +1,34 @@
 
-.PHONY: playground
+.PHONY: echo unique broadcast playground
 
 export GOBIN=/Users/mansishah/go/bin
 
+echo:
+	@echo "Installing echo binary..."
+	@(cd ./maelstrom-echo && go install)
+	@echo "Running Maelstrom test..."
+	@(cd ./maelstrom && ./maelstrom test -w echo --bin ~/go/bin/maelstrom-echo --node-count 1 --time-limit 10 &> /dev/null)
+	@echo "Passed echo"
+
+
+unique:
+	@echo "Installing unique-id binary..."
+	@(cd ./maelstrom-unique-ids && go install)
+	@echo "Running Maelstrom test..."
+	@(cd ./maelstrom && ./maelstrom test -w unique-ids --bin ~/go/bin/maelstrom-unique-ids --time-limit 30 --rate 1000 --node-count 3 --availability total --nemesis partition &> /dev/null)
+	@echo "Passed unique-ids"
+
+
 broadcast:
-	@echo "Installing playground binary..."
+	@echo "Installing broadcast binary..."
 	@(cd ./maelstrom-broadcast && go install)
 	@echo "Running Maelstrom test..."
-	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 5 --time-limit 20 --rate 10 --nemesis partition) || (code /Users/mansishah/personal/recurse/gossip-glomers/maelstrom/store/broadcast/latest/node-logs)
+	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 1 --time-limit 20 --rate 10  &> /dev/null)
+	@echo "Passed broadcast-a"
+	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 5 --time-limit 20 --rate 10 &> /dev/null)
+	@echo "Passed broadcast-b"
+	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 5 --time-limit 20 --rate 10 --nemesis partition &> /dev/null)
+	@echo "Passed broadcast-c"
 
 playground:
 	@echo "Installing playground binary..."
