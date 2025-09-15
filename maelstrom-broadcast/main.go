@@ -22,12 +22,8 @@ type SyncMessage struct {
 }
 
 var repl_log_mutex = sync.RWMutex{}
-var ack_mutex = sync.RWMutex{}
 
 func getValues(obj map[int]struct{}) []int {
-	repl_log_mutex.RLock()
-	defer repl_log_mutex.RUnlock()
-
 	var retVal []int
 	for key := range obj {
 		retVal = append(retVal, key)
@@ -36,9 +32,6 @@ func getValues(obj map[int]struct{}) []int {
 }
 
 func setValues(data map[int]struct{}, values []int) map[int]struct{} {
-	repl_log_mutex.Lock()
-	defer repl_log_mutex.Unlock()
-
 	for _, v := range values {
 		data[v] = struct{}{}
 	}
@@ -68,11 +61,9 @@ func main() {
 			return err
 		}
 
-		repl_log_mutex.Lock()
 		if msgFloat, ok := body["message"].(float64); ok {
 			data[int(msgFloat)] = struct{}{}
 		}
-		repl_log_mutex.Unlock()
 
 		sync_id, err := uuid.NewV7()
 		if err != nil {
@@ -115,6 +106,7 @@ func main() {
 		}
 
 		neighbors = body.Topology[n.ID()]
+		// log.Printf("** %s can talk to %v\n", n.ID(), neighbors)
 
 		res := map[string]string{"type": "topology_ok"}
 
@@ -122,25 +114,21 @@ func main() {
 	})
 
 	n.Handle("sync", func(msg maelstrom.Message) error {
+		repl_log_mutex.Lock()
+		defer repl_log_mutex.Unlock()
 		var body SyncMessage
 
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
 		}
 
-		ack_mutex.RLock()
-		_, exists := sync_ack[body.Id]
-		ack_mutex.RUnlock()
-
-		if exists {
+		if _, exists := sync_ack[body.Id]; exists {
 			return n.Reply(msg, map[string]any{"type": "sync_ok"})
 		}
 
 		data = setValues(data, body.Values)
 
-		ack_mutex.Lock()
 		sync_ack[body.Id] = struct{}{}
-		ack_mutex.Unlock()
 
 		for _, nid := range neighbors {
 			if nid != msg.Src {
