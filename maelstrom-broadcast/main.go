@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
@@ -21,7 +22,7 @@ type SyncMessage struct {
 	Id     string `json:"id"`
 }
 
-var repl_log_mutex = sync.RWMutex{}
+var stateMutex = sync.RWMutex{}
 
 func getValues(obj map[int]struct{}) []int {
 	var retVal []int
@@ -60,6 +61,9 @@ func main() {
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
 		}
+
+		stateMutex.Lock()
+		defer stateMutex.Unlock()
 
 		if msgFloat, ok := body["message"].(float64); ok {
 			data[int(msgFloat)] = struct{}{}
@@ -114,8 +118,8 @@ func main() {
 	})
 
 	n.Handle("sync", func(msg maelstrom.Message) error {
-		repl_log_mutex.Lock()
-		defer repl_log_mutex.Unlock()
+		stateMutex.Lock()
+		defer stateMutex.Unlock()
 		var body SyncMessage
 
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
@@ -138,6 +142,29 @@ func main() {
 
 		return n.Reply(msg, map[string]any{"type": "sync_ok"})
 	})
+
+	go func() {
+		for {
+			time.Sleep(1 * time.Second)
+
+			sync_id, err := uuid.NewV7()
+			if err != nil {
+				continue
+			}
+
+			stateMutex.Lock()
+			sync_ack[sync_id.String()] = struct{}{}
+			stateMutex.Unlock()
+
+			gossip := SyncMessage{Type: "sync", Values: getValues(data), Id: sync_id.String()}
+
+			for _, nid := range neighbors {
+				if nid != n.ID() {
+					n.RPC(nid, gossip, nil)
+				}
+			}
+		}
+	}()
 
 	if err := n.Run(); err != nil {
 		log.Fatal(err)
