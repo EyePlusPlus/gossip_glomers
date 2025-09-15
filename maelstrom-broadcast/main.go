@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/google/uuid"
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
@@ -20,7 +21,13 @@ type SyncMessage struct {
 	Id     string `json:"id"`
 }
 
+var repl_log_mutex = sync.RWMutex{}
+var ack_mutex = sync.RWMutex{}
+
 func getValues(obj map[int]struct{}) []int {
+	repl_log_mutex.RLock()
+	defer repl_log_mutex.RUnlock()
+
 	var retVal []int
 	for key := range obj {
 		retVal = append(retVal, key)
@@ -29,6 +36,9 @@ func getValues(obj map[int]struct{}) []int {
 }
 
 func setValues(data map[int]struct{}, values []int) map[int]struct{} {
+	repl_log_mutex.Lock()
+	defer repl_log_mutex.Unlock()
+
 	for _, v := range values {
 		data[v] = struct{}{}
 	}
@@ -58,9 +68,11 @@ func main() {
 			return err
 		}
 
+		repl_log_mutex.Lock()
 		if msgFloat, ok := body["message"].(float64); ok {
 			data[int(msgFloat)] = struct{}{}
 		}
+		repl_log_mutex.Unlock()
 
 		sync_id, err := uuid.NewV7()
 		if err != nil {
@@ -116,13 +128,19 @@ func main() {
 			return err
 		}
 
-		if _, exists := sync_ack[body.Id]; exists {
+		ack_mutex.RLock()
+		_, exists := sync_ack[body.Id]
+		ack_mutex.RUnlock()
+
+		if exists {
 			return n.Reply(msg, map[string]any{"type": "sync_ok"})
 		}
 
 		data = setValues(data, body.Values)
 
+		ack_mutex.Lock()
 		sync_ack[body.Id] = struct{}{}
+		ack_mutex.Unlock()
 
 		for _, nid := range neighbors {
 			if nid != msg.Src {
