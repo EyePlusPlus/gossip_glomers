@@ -55,9 +55,12 @@ func main() {
 		stateMutex.Lock()
 		defer stateMutex.Unlock()
 
+		var message int
 		if msgFloat, ok := body["message"].(float64); ok {
-			data[int(msgFloat)] = struct{}{}
+			message = int(msgFloat)
 		}
+
+		data[message] = struct{}{}
 
 		sync_id, err := uuid.NewV7()
 		if err != nil {
@@ -66,7 +69,7 @@ func main() {
 
 		sync_ack[sync_id.String()] = struct{}{}
 
-		gossip := SyncMessage{Type: "sync", Values: getValues(data), Id: sync_id.String()}
+		gossip := SyncMessage{Type: "sync", Values: []int{message}, Id: sync_id.String()}
 
 		for _, nid := range neighbors {
 			if nid != msg.Src {
