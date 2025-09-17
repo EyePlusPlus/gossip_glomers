@@ -89,6 +89,9 @@ func main() {
 			return err
 		}
 
+		stateMutex.RLock()
+		defer stateMutex.RUnlock()
+
 		body["type"] = "read_ok"
 		body["messages"] = getValues(data)
 
@@ -147,9 +150,10 @@ func main() {
 
 			stateMutex.Lock()
 			sync_ack[sync_id.String()] = struct{}{}
+			allMessages := getValues(data)
 			stateMutex.Unlock()
 
-			gossip := SyncMessage{Type: "sync", Values: getValues(data), Id: sync_id.String()}
+			gossip := SyncMessage{Type: "sync", Values: allMessages, Id: sync_id.String()}
 
 			for _, nid := range neighbors {
 				if nid != n.ID() {
