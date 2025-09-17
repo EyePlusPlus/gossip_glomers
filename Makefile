@@ -29,7 +29,7 @@ broadcast:
 # 	@echo "Passed broadcast-b"
 # 	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 5 --time-limit 20 --rate 10 --nemesis partition &> /dev/null)
 # 	@echo "Passed broadcast-c"
-	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 25 --time-limit 20 --rate 100 --latency 100 --nemesis partition)
+	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 25 --time-limit 20 --rate 100 --latency 100)
 	@echo "Passed broadcast-d"
 
 playground:

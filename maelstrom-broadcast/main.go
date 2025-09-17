@@ -14,6 +14,11 @@ type TopologyMessage struct {
 	Topology map[string][]string `json:"topology"`
 }
 
+type BroadcastMessage struct {
+	Type    string `json:"type"`
+	Message int    `json:"message"`
+}
+
 type SyncMessage struct {
 	Type   string `json:"type"`
 	Values []int  `json:"values"`
@@ -46,19 +51,15 @@ func main() {
 	var neighbors []string
 
 	n.Handle("broadcast", func(msg maelstrom.Message) error {
-		var body map[string]any
+		var body BroadcastMessage
 
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
 		}
 
-		stateMutex.Lock()
-		defer stateMutex.Unlock()
+		message := body.Message
 
-		var message int
-		if msgFloat, ok := body["message"].(float64); ok {
-			message = int(msgFloat)
-		}
+		stateMutex.Lock()
 
 		data[message] = struct{}{}
 
@@ -68,6 +69,7 @@ func main() {
 		}
 
 		sync_ack[sync_id.String()] = struct{}{}
+		stateMutex.Unlock()
 
 		gossip := SyncMessage{Type: "sync", Values: []int{message}, Id: sync_id.String()}
 
@@ -114,27 +116,19 @@ func main() {
 	})
 
 	n.Handle("sync", func(msg maelstrom.Message) error {
-		stateMutex.Lock()
-		defer stateMutex.Unlock()
 		var body SyncMessage
 
 		if err := json.Unmarshal(msg.Body, &body); err != nil {
 			return err
 		}
 
+		stateMutex.Lock()
 		if _, exists := sync_ack[body.Id]; exists {
 			return n.Reply(msg, map[string]any{"type": "sync_ok"})
 		}
 
 		data = setValues(data, body.Values)
-
-		sync_ack[body.Id] = struct{}{}
-
-		for _, nid := range neighbors {
-			if nid != msg.Src {
-				n.RPC(nid, body, nil)
-			}
-		}
+		stateMutex.Unlock()
 
 		return n.Reply(msg, map[string]any{"type": "sync_ok"})
 	})
