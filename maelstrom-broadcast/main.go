@@ -2,9 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
-	"os"
 	"sync"
 	"time"
 
@@ -41,14 +39,6 @@ func setValues(data map[int]struct{}, values []int) map[int]struct{} {
 }
 
 func main() {
-
-	file, err := os.OpenFile("/tmp/maelstrom-broadcast.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Printf("Error opening file: %v\n", err)
-		return
-	}
-
-	defer file.Close()
 
 	n := maelstrom.NewNode()
 	data := make(map[int]struct{})
