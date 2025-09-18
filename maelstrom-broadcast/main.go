@@ -110,13 +110,13 @@ func main() {
 
 		stateMutex.Lock()
 		if _, exists := sync_ack[body.Id]; exists {
-			return n.Reply(msg, map[string]any{"type": "sync_ok"})
+			return nil
 		}
 
 		data = setValues(data, body.Values)
 		stateMutex.Unlock()
 
-		return n.Reply(msg, map[string]any{"type": "sync_ok"})
+		return nil
 	})
 
 	go func() {
@@ -137,7 +137,7 @@ func main() {
 
 			for _, nid := range neighbors {
 				if nid != n.ID() {
-					n.RPC(nid, gossip, nil)
+					n.Send(nid, gossip)
 				}
 			}
 		}
