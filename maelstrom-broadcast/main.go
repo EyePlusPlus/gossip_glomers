@@ -26,7 +26,7 @@ type SyncMessage struct {
 var stateMutex = sync.RWMutex{}
 
 func getValues(obj map[int]struct{}) []int {
-	var retVal []int
+	retVal := make([]int, len(obj))
 	for key := range obj {
 		retVal = append(retVal, key)
 	}
