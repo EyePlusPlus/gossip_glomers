@@ -128,13 +128,7 @@ func main() {
 				continue
 			}
 
-			stateMutex.Lock()
-			result := make([]int, len(pending_messages))
-			copy(result, pending_messages)
-			pending_messages = make([]int, 0)
-			stateMutex.Unlock()
-
-			gossip := SyncMessage{Type: "sync", Values: result}
+			gossip := SyncMessage{Type: "sync", Values: pending_messages}
 
 			for _, nid := range neighbors {
 				if nid != n.ID() {
