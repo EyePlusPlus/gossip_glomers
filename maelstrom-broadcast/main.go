@@ -62,22 +62,7 @@ func main() {
 		stateMutex.Lock()
 
 		data[message] = struct{}{}
-
-		sync_id, err := uuid.NewV7()
-		if err != nil {
-			return err
-		}
-
-		sync_ack[sync_id.String()] = struct{}{}
 		stateMutex.Unlock()
-
-		gossip := SyncMessage{Type: "sync", Values: []int{message}, Id: sync_id.String()}
-
-		for _, nid := range neighbors {
-			if nid != msg.Src {
-				n.RPC(nid, gossip, nil)
-			}
-		}
 
 		res := map[string]string{"type": "broadcast_ok"}
 
@@ -94,9 +79,11 @@ func main() {
 		stateMutex.RLock()
 		defer stateMutex.RUnlock()
 
+		result := getValues(data)
 		body["type"] = "read_ok"
-		body["messages"] = getValues(data)
+		body["messages"] = result
 
+		log.Println("Read count", len(result))
 		return n.Reply(msg, body)
 	})
 
@@ -108,7 +95,6 @@ func main() {
 		}
 
 		neighbors = body.Topology[n.ID()]
-		// log.Printf("** %s can talk to %v\n", n.ID(), neighbors)
 
 		res := map[string]string{"type": "topology_ok"}
 
