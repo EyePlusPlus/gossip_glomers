@@ -35,12 +35,29 @@ func getValues(obj map[int]struct{}) []int {
 	return retVal
 }
 
-func setValues(data map[int]struct{}, values []int) map[int]struct{} {
+func setValues(data map[int]struct{}, values []int, pending_queue []int) map[int]struct{} {
 	for _, v := range values {
-		data[v] = struct{}{}
+		if _, exists := data[v]; !exists {
+			data[v] = struct{}{}
+			pending_queue = append(pending_queue, v)
+		}
 	}
 
 	return data
+}
+
+func sendWithRetry(n *maelstrom.Node, nid string, gossip SyncMessage) {
+	retryCount := 3
+
+	for retryCount > 0 {
+		n.RPC(nid, gossip, func(msg maelstrom.Message) error {
+			retryCount = 0
+
+			return nil
+		})
+		time.Sleep(5 * time.Second)
+		retryCount--
+	}
 }
 
 func main() {
@@ -48,6 +65,7 @@ func main() {
 	n := maelstrom.NewNode()
 	data := make(map[int]struct{})
 	sync_ack := make(map[string]struct{})
+	pending_queue := make([]int, 0)
 	var neighbors []string
 
 	n.Handle("broadcast", func(msg maelstrom.Message) error {
@@ -62,22 +80,7 @@ func main() {
 		stateMutex.Lock()
 
 		data[message] = struct{}{}
-
-		sync_id, err := uuid.NewV7()
-		if err != nil {
-			return err
-		}
-
-		sync_ack[sync_id.String()] = struct{}{}
-		stateMutex.Unlock()
-
-		gossip := SyncMessage{Type: "sync", Values: []int{message}, Id: sync_id.String()}
-
-		for _, nid := range neighbors {
-			if nid != msg.Src {
-				n.RPC(nid, gossip, nil)
-			}
-		}
+		pending_queue = append(pending_queue, message)
 
 		res := map[string]string{"type": "broadcast_ok"}
 
@@ -108,7 +111,6 @@ func main() {
 		}
 
 		neighbors = body.Topology[n.ID()]
-		// log.Printf("** %s can talk to %v\n", n.ID(), neighbors)
 
 		res := map[string]string{"type": "topology_ok"}
 
@@ -127,7 +129,7 @@ func main() {
 			return n.Reply(msg, map[string]any{"type": "sync_ok"})
 		}
 
-		data = setValues(data, body.Values)
+		data = setValues(data, body.Values, pending_queue)
 		stateMutex.Unlock()
 
 		return n.Reply(msg, map[string]any{"type": "sync_ok"})
@@ -144,14 +146,16 @@ func main() {
 
 			stateMutex.Lock()
 			sync_ack[sync_id.String()] = struct{}{}
-			allMessages := getValues(data)
+			var allMessages []int
+			copy(allMessages, pending_queue)
+			pending_queue = make([]int, 0)
 			stateMutex.Unlock()
 
 			gossip := SyncMessage{Type: "sync", Values: allMessages, Id: sync_id.String()}
 
 			for _, nid := range neighbors {
 				if nid != n.ID() {
-					n.RPC(nid, gossip, nil)
+					sendWithRetry(n, nid, gossip)
 				}
 			}
 		}
