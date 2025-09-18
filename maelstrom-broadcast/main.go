@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
 
@@ -22,7 +21,6 @@ type BroadcastMessage struct {
 type SyncMessage struct {
 	Type   string `json:"type"`
 	Values []int  `json:"values"`
-	Id     string `json:"id"`
 }
 
 var stateMutex = sync.RWMutex{}
@@ -51,7 +49,6 @@ func main() {
 
 	n := maelstrom.NewNode()
 	data := make(map[int]struct{})
-	sync_ack := make(map[string]struct{})
 	var neighbors []string
 	pending_messages := make([]int, 0)
 
@@ -115,10 +112,6 @@ func main() {
 		}
 
 		stateMutex.Lock()
-		if _, exists := sync_ack[body.Id]; exists {
-			return nil
-		}
-
 		log.Println("Length pending before", len(pending_messages))
 		data, pending_messages = setValues(data, body.Values, pending_messages)
 		log.Println("Length pending after", len(pending_messages))
@@ -135,19 +128,13 @@ func main() {
 				continue
 			}
 
-			sync_id, err := uuid.NewV7()
-			if err != nil {
-				continue
-			}
-
 			stateMutex.Lock()
-			sync_ack[sync_id.String()] = struct{}{}
 			result := make([]int, len(pending_messages))
 			copy(result, pending_messages)
 			pending_messages = make([]int, 0)
 			stateMutex.Unlock()
 
-			gossip := SyncMessage{Type: "sync", Values: result, Id: sync_id.String()}
+			gossip := SyncMessage{Type: "sync", Values: result}
 
 			for _, nid := range neighbors {
 				if nid != n.ID() {
