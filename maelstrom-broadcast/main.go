@@ -121,7 +121,7 @@ func main() {
 
 	go func() {
 		for {
-			time.Sleep(1 * time.Second)
+			time.Sleep(200 * time.Millisecond)
 
 			sync_id, err := uuid.NewV7()
 			if err != nil {
