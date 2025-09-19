@@ -26,6 +26,9 @@ type SyncMessage struct {
 var stateMutex = sync.RWMutex{}
 
 func getValues(obj map[int]struct{}) []int {
+	stateMutex.RLock()
+	defer stateMutex.RUnlock()
+
 	retVal := make([]int, len(obj))
 	for key := range obj {
 		retVal = append(retVal, key)
@@ -72,9 +75,6 @@ func main() {
 			return err
 		}
 
-		stateMutex.RLock()
-		defer stateMutex.RUnlock()
-
 		result := getValues(data)
 		body["type"] = "read_ok"
 		body["messages"] = result
@@ -115,15 +115,13 @@ func main() {
 		ticker := time.NewTicker(200 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
-			time.Sleep(200 * time.Millisecond)
+			// time.Sleep(200 * time.Millisecond)
 
 			if len(data) <= 0 {
 				continue
 			}
 
-			stateMutex.RLock()
 			gossip := SyncMessage{Type: "sync", Values: getValues(data)}
-			stateMutex.RUnlock()
 
 			for _, nid := range neighbors {
 				if nid != n.ID() {
