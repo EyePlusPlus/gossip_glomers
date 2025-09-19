@@ -112,7 +112,9 @@ func main() {
 	})
 
 	go func() {
-		for {
+		ticker := time.NewTicker(200 * time.Millisecond)
+		defer ticker.Stop()
+		for range ticker.C {
 			time.Sleep(200 * time.Millisecond)
 
 			if len(data) <= 0 {
