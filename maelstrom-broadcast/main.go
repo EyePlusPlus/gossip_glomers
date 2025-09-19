@@ -42,20 +42,17 @@ func main() {
 
 		message := body.Message
 
-		stateMutex.Lock()
-		if slices.Contains(pending_queue, message) {
+		if !slices.Contains(pending_queue, message) {
+			stateMutex.Lock()
+			pending_queue = append(pending_queue, message)
 			stateMutex.Unlock()
-			return nil
-		}
 
-		pending_queue = append(pending_queue, message)
-		stateMutex.Unlock()
-
-		for _, neighbor := range neighbors {
-			if neighbor == msg.Src {
-				continue
+			for _, neighbor := range neighbors {
+				if neighbor == msg.Src {
+					continue
+				}
+				n.Send(neighbor, msg.Body)
 			}
-			n.Send(neighbor, msg.Body)
 		}
 
 		res := map[string]string{"type": "broadcast_ok"}
@@ -64,17 +61,16 @@ func main() {
 	})
 
 	n.Handle("read", func(msg maelstrom.Message) error {
-		var body map[string]any
+		// var body map[string]any
+		body := map[string]any{}
 
-		if err := json.Unmarshal(msg.Body, &body); err != nil {
-			return err
-		}
+		// if err := json.Unmarshal(msg.Body, &body); err != nil {
+		// 	return err
+		// }
 
-		result := pending_queue
 		body["type"] = "read_ok"
-		body["messages"] = result
+		body["messages"] = pending_queue
 
-		log.Println("Read count", len(result))
 		return n.Reply(msg, body)
 	})
 
