@@ -27,28 +27,6 @@ type SyncMessage struct {
 
 var stateMutex = sync.RWMutex{}
 
-func getValues(obj map[int]struct{}) []int {
-	stateMutex.RLock()
-	defer stateMutex.RUnlock()
-
-	retVal := make([]int, 0, len(obj))
-	for key := range obj {
-		retVal = append(retVal, key)
-	}
-	return retVal
-}
-
-func setValues(data map[int]struct{}, values []int, pending_queue []int) (map[int]struct{}, []int) {
-	for _, v := range values {
-		if _, exists := data[v]; !exists {
-			data[v] = struct{}{}
-			pending_queue = append(pending_queue, v)
-		}
-	}
-
-	return data, pending_queue
-}
-
 func main() {
 
 	n := maelstrom.NewNode()
@@ -148,8 +126,11 @@ func main() {
 
 			neighbor := neighbors[rand.Intn(len(neighbors))]
 
+			// for _, neighbor := range neighbors {
+			// 	if neighbor != n.ID() {
 			n.Send(neighbor, gossip)
-
+			// 	}
+			// }
 		}
 	}()
 
