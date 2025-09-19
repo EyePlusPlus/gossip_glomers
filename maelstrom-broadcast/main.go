@@ -60,8 +60,20 @@ func main() {
 		message := body.Message
 
 		stateMutex.Lock()
+		if _, exists := data[message]; exists {
+			stateMutex.Unlock()
+			return nil
+		}
+
 		data[message] = struct{}{}
 		stateMutex.Unlock()
+
+		for _, neighbor := range neighbors {
+			if neighbor == msg.Src {
+				continue
+			}
+			n.Send(neighbor, msg.Body)
+		}
 
 		res := map[string]string{"type": "broadcast_ok"}
 
