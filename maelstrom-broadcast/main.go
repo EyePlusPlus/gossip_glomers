@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -135,11 +136,10 @@ func main() {
 
 			gossip := SyncMessage{Type: "sync", Values: getValues(data)}
 
-			for _, nid := range neighbors {
-				if nid != n.ID() {
-					n.Send(nid, gossip)
-				}
-			}
+			neighbor := neighbors[rand.Intn(len(neighbors))]
+
+			n.Send(neighbor, gossip)
+
 		}
 	}()
 
