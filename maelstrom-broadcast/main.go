@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"math/rand"
+	"slices"
 	"sync"
 	"time"
 
@@ -51,7 +52,6 @@ func setValues(data map[int]struct{}, values []int, pending_queue []int) (map[in
 func main() {
 
 	n := maelstrom.NewNode()
-	data := make(map[int]struct{})
 	var neighbors []string
 	var pending_queue []int
 
@@ -65,12 +65,11 @@ func main() {
 		message := body.Message
 
 		stateMutex.Lock()
-		if _, exists := data[message]; exists {
+		if slices.Contains(pending_queue, message) {
 			stateMutex.Unlock()
 			return nil
 		}
 
-		data[message] = struct{}{}
 		pending_queue = append(pending_queue, message)
 		stateMutex.Unlock()
 
@@ -93,7 +92,7 @@ func main() {
 			return err
 		}
 
-		result := getValues(data)
+		result := pending_queue
 		body["type"] = "read_ok"
 		body["messages"] = result
 
@@ -122,9 +121,13 @@ func main() {
 			return err
 		}
 
-		stateMutex.Lock()
-		data, pending_queue = setValues(data, body.Values, pending_queue)
-		stateMutex.Unlock()
+		for _, v := range body.Values {
+			if !slices.Contains(pending_queue, v) {
+				stateMutex.Lock()
+				pending_queue = append(pending_queue, v)
+				stateMutex.Unlock()
+			}
+		}
 
 		return nil
 	})
@@ -141,7 +144,6 @@ func main() {
 
 			stateMutex.Lock()
 			gossip := SyncMessage{Type: "sync", Values: pending_queue}
-			pending_queue = make([]int, 0)
 			stateMutex.Unlock()
 
 			neighbor := neighbors[rand.Intn(len(neighbors))]
