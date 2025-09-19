@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"log"
-	"math/rand"
 	"slices"
 	"sync"
 	"time"
@@ -47,12 +46,12 @@ func main() {
 			pending_queue = append(pending_queue, message)
 			stateMutex.Unlock()
 
-			for _, neighbor := range neighbors {
-				if neighbor == msg.Src {
-					continue
-				}
-				n.Send(neighbor, msg.Body)
-			}
+			// for _, neighbor := range neighbors {
+			// 	if neighbor == msg.Src {
+			// 		continue
+			// 	}
+			// 	n.Send(neighbor, msg.Body)
+			// }
 		}
 
 		res := map[string]string{"type": "broadcast_ok"}
@@ -81,7 +80,13 @@ func main() {
 			return err
 		}
 
-		neighbors = body.Topology[n.ID()]
+		for node := range body.Topology {
+			if node != n.ID() {
+				neighbors = append(neighbors, node)
+			}
+		}
+
+		// neighbors = body.Topology[n.ID()]
 
 		res := map[string]string{"type": "topology_ok"}
 
@@ -116,17 +121,15 @@ func main() {
 				continue
 			}
 
-			stateMutex.Lock()
 			gossip := SyncMessage{Type: "sync", Values: pending_queue}
-			stateMutex.Unlock()
 
-			neighbor := neighbors[rand.Intn(len(neighbors))]
+			// neighbor := neighbors[rand.Intn(len(neighbors))]
 
-			// for _, neighbor := range neighbors {
-			// 	if neighbor != n.ID() {
-			n.Send(neighbor, gossip)
-			// 	}
-			// }
+			for _, neighbor := range neighbors {
+				if neighbor != n.ID() {
+					n.Send(neighbor, gossip)
+				}
+			}
 		}
 	}()
 
