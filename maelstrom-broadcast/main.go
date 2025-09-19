@@ -29,7 +29,7 @@ func getValues(obj map[int]struct{}) []int {
 	stateMutex.RLock()
 	defer stateMutex.RUnlock()
 
-	retVal := make([]int, len(obj))
+	retVal := make([]int, 0, len(obj))
 	for key := range obj {
 		retVal = append(retVal, key)
 	}
