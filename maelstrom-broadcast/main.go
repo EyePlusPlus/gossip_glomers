@@ -35,10 +35,7 @@ func getValues(obj map[int]struct{}) []int {
 
 func setValues(data map[int]struct{}, values []int) map[int]struct{} {
 	for _, v := range values {
-		if _, exists := data[v]; !exists {
-			data[v] = struct{}{}
-		}
-
+		data[v] = struct{}{}
 	}
 
 	return data
