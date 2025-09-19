@@ -37,12 +37,15 @@ func getValues(obj map[int]struct{}) []int {
 	return retVal
 }
 
-func setValues(data map[int]struct{}, values []int) map[int]struct{} {
+func setValues(data map[int]struct{}, values []int, pending_queue []int) (map[int]struct{}, []int) {
 	for _, v := range values {
-		data[v] = struct{}{}
+		if _, exists := data[v]; !exists {
+			data[v] = struct{}{}
+			pending_queue = append(pending_queue, v)
+		}
 	}
 
-	return data
+	return data, pending_queue
 }
 
 func main() {
@@ -50,6 +53,7 @@ func main() {
 	n := maelstrom.NewNode()
 	data := make(map[int]struct{})
 	var neighbors []string
+	var pending_queue []int
 
 	n.Handle("broadcast", func(msg maelstrom.Message) error {
 		var body BroadcastMessage
@@ -67,6 +71,7 @@ func main() {
 		}
 
 		data[message] = struct{}{}
+		pending_queue = append(pending_queue, message)
 		stateMutex.Unlock()
 
 		for _, neighbor := range neighbors {
@@ -118,7 +123,7 @@ func main() {
 		}
 
 		stateMutex.Lock()
-		data = setValues(data, body.Values)
+		data, pending_queue = setValues(data, body.Values, pending_queue)
 		stateMutex.Unlock()
 
 		return nil
@@ -130,11 +135,14 @@ func main() {
 		for range ticker.C {
 			// time.Sleep(200 * time.Millisecond)
 
-			if len(data) <= 0 {
+			if len(pending_queue) <= 0 {
 				continue
 			}
 
-			gossip := SyncMessage{Type: "sync", Values: getValues(data)}
+			stateMutex.Lock()
+			gossip := SyncMessage{Type: "sync", Values: pending_queue}
+			pending_queue = make([]int, 0)
+			stateMutex.Unlock()
 
 			neighbor := neighbors[rand.Intn(len(neighbors))]
 
