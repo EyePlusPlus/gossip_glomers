@@ -112,7 +112,7 @@ func main() {
 	})
 
 	go func() {
-		ticker := time.NewTicker(200 * time.Millisecond)
+		ticker := time.NewTicker(600 * time.Millisecond)
 		defer ticker.Stop()
 		for range ticker.C {
 			// time.Sleep(200 * time.Millisecond)
