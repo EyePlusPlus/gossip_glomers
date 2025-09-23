@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
@@ -36,15 +35,18 @@ func appendToLog(kv *maelstrom.KV, ctx context.Context, key string, value int) i
 		if err != nil || oldValue == nil {
 			newValue = []int{value}
 		} else {
-			if x, ok := oldValue.([]float64); ok {
-				newValue = make([]int, 0, len(x))
-				for index, v := range x {
-					newValue[index] = int(v)
-				}
-				newValue = append(newValue, value)
-			} else {
-				panic(fmt.Errorf("invalid value: %t", oldValue))
+			z, ok := oldValue.([]interface{})
+			if !ok {
+				panic("Type is wrong")
 			}
+
+			newValue = make([]int, 0, len(z))
+			for index, v := range z {
+				if c, ok := v.(int); ok {
+					newValue[index] = int(c)
+				}
+			}
+			newValue = append(newValue, value)
 		}
 
 		if err := kv.CompareAndSwap(ctx, key, oldValue, newValue, true); err == nil {
@@ -77,7 +79,9 @@ func readFromLog(kv *maelstrom.KV, ctx context.Context, key string, offset int) 
 
 	storedValue, err := kv.Read(ctx, key)
 	if err != nil {
-		panic("Failed to read log 1")
+		if maelstrom.ErrorCode(err) != 20 {
+			panic("Failed to read log 1")
+		}
 	}
 
 	if value, ok := storedValue.([]int); ok {
