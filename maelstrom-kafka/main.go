@@ -37,13 +37,13 @@ func appendToLog(kv *maelstrom.KV, ctx context.Context, key string, value int) i
 		} else {
 			z, ok := oldValue.([]interface{})
 			if !ok {
-				panic("Type is wrong")
+				panic("Type is wrong, expected a slice")
 			}
 
-			newValue = make([]int, 0, len(z))
-			for index, v := range z {
-				if c, ok := v.(int); ok {
-					newValue[index] = int(c)
+			newValue = make([]int, 0, len(z)+1)
+			for _, v := range z {
+				if f, ok := v.(float64); ok {
+					newValue = append(newValue, int(f))
 				}
 			}
 			newValue = append(newValue, value)
