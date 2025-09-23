@@ -63,7 +63,9 @@ func appendCommitOffsets(kv *maelstrom.KV, ctx context.Context, key string, valu
 	for !success {
 		oldValue, err := kv.ReadInt(ctx, key)
 		if err != nil {
-			panic("Error reading")
+			if maelstrom.ErrorCode(err) != 20 {
+				panic("Error reading")
+			}
 		}
 
 		if err := kv.CompareAndSwap(ctx, key, oldValue, value, true); err == nil {
@@ -82,26 +84,34 @@ func readFromLog(kv *maelstrom.KV, ctx context.Context, key string, offset int) 
 		if maelstrom.ErrorCode(err) != 20 {
 			panic("Failed to read log 1")
 		}
+
+		return returnValue
 	}
 
-	if value, ok := storedValue.([]int); ok {
-		for i := offset; i < len(value); i++ {
-			returnValue = append(returnValue, []int{i, value[i]})
+	z, ok := storedValue.([]interface{})
+	if !ok {
+		panic("Type is wrong")
+	}
+
+	for i, v := range z {
+		if f, ok := v.(float64); ok {
+			returnValue = append(returnValue, []int{i, int(f)})
 		}
 	}
 
 	return returnValue
 }
 
-func readCommittedOffsets(kv *maelstrom.KV, ctx context.Context, key string) int {
+func readCommittedOffsets(kv *maelstrom.KV, ctx context.Context, key string) (int, bool) {
 	storedValue, err := kv.ReadInt(ctx, key)
 	if err != nil {
 		if maelstrom.ErrorCode(err) != 20 {
 			panic("Failed to read log 2")
 		}
+		return 0, false
 	}
 
-	return storedValue
+	return storedValue, true
 }
 
 func main() {
@@ -178,7 +188,10 @@ func main() {
 
 		for _, k := range keys {
 			key := "committed_" + k
-			offsets[k] = readCommittedOffsets(kv, ctx, key)
+			v, ok := readCommittedOffsets(kv, ctx, key)
+			if ok {
+				offsets[k] = v
+			}
 		}
 
 		res := make(map[string]any)
