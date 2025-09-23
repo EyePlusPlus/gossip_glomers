@@ -1,9 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
-	"sync"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
@@ -26,35 +27,83 @@ type ListCommitesOffsetsMessage struct {
 	Keys []string `json:"keys"`
 }
 
-var repl_log = make(map[string][]int)
-var repl_log_mutex = sync.RWMutex{}
+func appendToLog(kv *maelstrom.KV, ctx context.Context, key string, value int) int {
+	success := false
+	var newValue []int
 
-func appendToLog(key string, value int) int {
-	repl_log_mutex.Lock()
-	defer repl_log_mutex.Unlock()
+	for !success {
+		oldValue, err := kv.Read(ctx, key)
+		if err != nil || oldValue == nil {
+			newValue = []int{value}
+		} else {
+			if x, ok := oldValue.([]float64); ok {
+				newValue = make([]int, 0, len(x))
+				for index, v := range x {
+					newValue[index] = int(v)
+				}
+				newValue = append(newValue, value)
+			} else {
+				panic(fmt.Errorf("invalid value: %t", oldValue))
+			}
+		}
 
-	repl_log[key] = append(repl_log[key], value)
-	return len(repl_log[key]) - 1
+		if err := kv.CompareAndSwap(ctx, key, oldValue, newValue, true); err == nil {
+			success = true
+		}
+	}
+
+	return len(newValue) - 1
 }
 
-func readFromLog(key string, offset int) [][]int {
-	repl_log_mutex.RLock()
-	defer repl_log_mutex.RUnlock()
+func appendCommitOffsets(kv *maelstrom.KV, ctx context.Context, key string, value int) bool {
+	success := false
 
-	returnValue := make([][]int, 0)
-	original := repl_log[key]
-	copiedData := make([]int, len(original))
-	copy(copiedData, original)
-	for i := offset; i < len(copiedData); i++ {
-		returnValue = append(returnValue, []int{i, copiedData[i]})
+	for !success {
+		oldValue, err := kv.ReadInt(ctx, key)
+		if err != nil {
+			panic("Error reading")
+		}
+
+		if err := kv.CompareAndSwap(ctx, key, oldValue, value, true); err == nil {
+			success = true
+		}
 	}
+
+	return true
+}
+
+func readFromLog(kv *maelstrom.KV, ctx context.Context, key string, offset int) [][]int {
+	returnValue := make([][]int, 0)
+
+	storedValue, err := kv.Read(ctx, key)
+	if err != nil {
+		panic("Failed to read log 1")
+	}
+
+	if value, ok := storedValue.([]int); ok {
+		for i := offset; i < len(value); i++ {
+			returnValue = append(returnValue, []int{i, value[i]})
+		}
+	}
+
 	return returnValue
+}
+
+func readCommittedOffsets(kv *maelstrom.KV, ctx context.Context, key string) int {
+	storedValue, err := kv.ReadInt(ctx, key)
+	if err != nil {
+		if maelstrom.ErrorCode(err) != 20 {
+			panic("Failed to read log 2")
+		}
+	}
+
+	return storedValue
 }
 
 func main() {
 	n := maelstrom.NewNode()
-
-	log.Printf("@@@@@@@@@@ Started")
+	kv := maelstrom.NewLinKV(n)
+	ctx := context.Background()
 
 	n.Handle("send", func(msg maelstrom.Message) error {
 		var body SendMessage
@@ -66,12 +115,9 @@ func main() {
 		key := body.Key
 		message := body.Msg
 
-		offset := appendToLog(key, message)
+		offset := appendToLog(kv, ctx, key, message)
 
-		res := make(map[string]any)
-
-		res["type"] = "send_ok"
-		res["offset"] = offset
+		res := map[string]any{"type": "send_ok", "offset": offset}
 
 		return n.Reply(msg, res)
 	})
@@ -86,7 +132,7 @@ func main() {
 		msgs := make(map[string][][]int)
 
 		for k, v := range offsets {
-			msgs[k] = readFromLog(k, v)
+			msgs[k] = readFromLog(kv, ctx, k, v)
 		}
 
 		res := make(map[string]any)
@@ -103,7 +149,12 @@ func main() {
 			return err
 		}
 
-		// offsets := body.Offsets
+		offsets := body.Offsets
+
+		for k, v := range offsets {
+			key := "committed_" + k
+			appendCommitOffsets(kv, ctx, key, v)
+		}
 
 		res := make(map[string]any)
 
@@ -122,7 +173,8 @@ func main() {
 		offsets := make(map[string]int)
 
 		for _, k := range keys {
-			offsets[k] = len(repl_log[k]) - 1
+			key := "committed_" + k
+			offsets[k] = readCommittedOffsets(kv, ctx, key)
 		}
 
 		res := make(map[string]any)
