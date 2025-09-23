@@ -1,5 +1,5 @@
 
-.PHONY: echo unique broadcast playground
+.PHONY: echo unique broadcast gcounter kafka playground
 
 export GOBIN=/Users/mansishah/go/bin
 
@@ -23,14 +23,31 @@ broadcast:
 	@echo "Installing broadcast binary..."
 	@(cd ./maelstrom-broadcast && go install)
 	@echo "Running Maelstrom test..."
-# 	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 1 --time-limit 20 --rate 10  &> /dev/null)
-# 	@echo "Passed broadcast-a"
-# 	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 5 --time-limit 20 --rate 10 &> /dev/null)
-# 	@echo "Passed broadcast-b"
-# 	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 5 --time-limit 20 --rate 10 --nemesis partition &> /dev/null)
-# 	@echo "Passed broadcast-c"
+	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 1 --time-limit 20 --rate 10  &> /dev/null)
+	@echo "Passed broadcast-a"
+	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 5 --time-limit 20 --rate 10 &> /dev/null)
+	@echo "Passed broadcast-b"
+	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 5 --time-limit 20 --rate 10 --nemesis partition &> /dev/null)
+	@echo "Passed broadcast-c"
 	@(cd ./maelstrom && ./maelstrom test -w broadcast --bin ~/go/bin/maelstrom-broadcast --node-count 25 --time-limit 20 --rate 100 --latency 100)
 	@echo "Passed broadcast-d"
+
+
+gcounter:
+	@echo "Installing g-counter binary..."
+	@(cd ./maelstrom-g-counter && go install)
+	@echo "Running Maelstrom test..."
+	@(cd ./maelstrom && ./maelstrom test -w g-counter --bin ~/go/bin/maelstrom-g-counter --node-count 3 --rate 100 --time-limit 20 --nemesis partition)
+	@echo "Passed g-counter"
+
+kafka:
+	@echo "Installing kafka binary..."
+	@(cd ./maelstrom-kafka && go install)
+	@echo "Running Maelstrom test..."
+# 	@(cd ./maelstrom && ./maelstrom test -w kafka --bin ~/go/bin/maelstrom-kafka --node-count 1 --concurrency 2n --time-limit 20 --rate 1000)
+# 	@echo "Passed kafka-a"
+	@(cd ./maelstrom && ./maelstrom test -w kafka --bin ~/go/bin/maelstrom-kafka --node-count 2 --concurrency 2n --time-limit 20 --rate 1000)
+	@echo "Passed kafka-b"
 
 playground:
 	@echo "Installing playground binary..."
