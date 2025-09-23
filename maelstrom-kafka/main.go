@@ -93,7 +93,8 @@ func readFromLog(kv *maelstrom.KV, ctx context.Context, key string, offset int) 
 		panic("Type is wrong")
 	}
 
-	for i, v := range z {
+	for i := offset; i < len(z); i++ {
+		v := z[i]
 		if f, ok := v.(float64); ok {
 			returnValue = append(returnValue, []int{i, int(f)})
 		}
