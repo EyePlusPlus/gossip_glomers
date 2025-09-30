@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
@@ -89,17 +91,55 @@ func main() {
 			body.Txn[idx] = retVal
 		}
 
-		for _, neighbor := range neighbors {
-			if n.ID() != neighbor && msg.Src != neighbor {
-				n.Send(neighbor, body)
-			}
-		}
-
 		res := map[string]interface{}{"type": "txn_ok", "txn": body.Txn}
 
 		return n.Reply(msg, res)
 
 	})
+
+	n.Handle("sync", func(msg maelstrom.Message) error {
+		var body map[string]interface{}
+
+		if err := json.Unmarshal(msg.Body, &body); err != nil {
+			return err
+		}
+
+		operations, ok := body["txn"].([]interface{})
+		if !ok {
+			return fmt.Errorf("invalid sync message body")
+		}
+
+		kvStoreMutex.Lock()
+		defer kvStoreMutex.Unlock()
+
+		for _, operation := range operations {
+			if operation, ok := operation.([]interface{}); ok {
+				processOperation(operation)
+			}
+		}
+
+		return nil
+	})
+
+	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		for range ticker.C {
+			kvStoreMutex.Lock()
+			op := make([][]interface{}, 0, len(kvStore))
+			for key, value := range kvStore {
+				newOp := []interface{}{"w", key, value}
+				op = append(op, newOp)
+			}
+			kvStoreMutex.Unlock()
+
+			for _, neighbor := range neighbors {
+				if n.ID() != neighbor {
+					n.Send(neighbor, map[string]interface{}{"type": "sync", "txn": op})
+				}
+			}
+		}
+	}()
 
 	if err := n.Run(); err != nil {
 		log.Fatal(err)
