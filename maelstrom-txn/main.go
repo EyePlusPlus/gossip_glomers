@@ -3,47 +3,54 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"sync"
 
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
 
-type TxnOperation struct {
-	Op    string
-	Key   int
-	Value int
-}
-
 type TxnMessage struct {
-	Type  string         `json:"type"`
-	MsgId int            `json:"msg_id"`
-	Txn   []TxnOperation `json:"txn"`
+	Type  string          `json:"type"`
+	MsgId int             `json:"msg_id"`
+	Txn   [][]interface{} `json:"txn"`
 }
 
 var kvStore = make(map[int][]int, 0)
+var kvStoreMutex = sync.RWMutex{}
 
-func processOperation(opInstruction TxnOperation) TxnOperation {
-	switch opInstruction.Op {
+func processOperation(opInstruction []interface{}) []interface{} {
+	key, keyOk := opInstruction[1].(float64)
+	if !keyOk {
+		panic("key is invalid")
+	}
+	intKey := int(key)
+
+	switch opInstruction[0] {
 	case "r":
-		// Read the value from kv store, update opInstruction, return it
-		values, exists := kvStore[opInstruction.Key]
+		values, exists := kvStore[intKey]
 		if exists {
-			opInstruction.Value = values[len(values)-1]
+			opInstruction[2] = values[len(values)-1]
+		} else {
+			opInstruction[2] = nil
 		}
 
 	case "w":
-		// Write the value to kv store, return opInstruction
-		values, exists := kvStore[opInstruction.Key]
+		value, valueOk := opInstruction[2].(float64)
+		if !valueOk {
+			panic("Value is invalid")
+		}
+		intValue := int(value)
+		values, exists := kvStore[intKey]
 		if exists {
-			kvStore[opInstruction.Key] = append(values, opInstruction.Value)
+			kvStore[intKey] = append(values, intValue)
 		} else {
-			kvStore[opInstruction.Key] = []int{opInstruction.Value}
+			kvStore[intKey] = []int{intValue}
 		}
 
 	default:
 		panic("Invalid operation")
 	}
 
-	return opInstruction
+	return []interface{}{opInstruction[0], opInstruction[1], opInstruction[2]}
 }
 
 func main() {
@@ -57,6 +64,9 @@ func main() {
 		}
 
 		operations := body.Txn
+
+		kvStoreMutex.Lock()
+		defer kvStoreMutex.Unlock()
 
 		for idx, operation := range operations {
 			retVal := processOperation(operation)
