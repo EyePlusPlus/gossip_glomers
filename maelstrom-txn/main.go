@@ -8,6 +8,12 @@ import (
 	maelstrom "github.com/jepsen-io/maelstrom/demo/go"
 )
 
+type InitMessage struct {
+	Type    string   `json:"type"`
+	NodeID  string   `json:"node_id"`
+	NodeIDs []string `json:"node_ids"`
+	MsgID   int      `json:"msg_id"`
+}
 type TxnMessage struct {
 	Type  string          `json:"type"`
 	MsgId int             `json:"msg_id"`
@@ -51,6 +57,21 @@ func processOperation(opInstruction []interface{}) []interface{} {
 func main() {
 	n := maelstrom.NewNode()
 
+	var neighbors []string
+
+	n.Handle("init", func(msg maelstrom.Message) error {
+		var body InitMessage
+
+		if err := json.Unmarshal(msg.Body, &body); err != nil {
+			return err
+		}
+
+		neighbors = body.NodeIDs
+
+		return n.Reply(msg, map[string]any{"type": "init_ok"})
+
+	})
+
 	n.Handle("txn", func(msg maelstrom.Message) error {
 		var body TxnMessage
 
@@ -66,6 +87,12 @@ func main() {
 		for idx, operation := range operations {
 			retVal := processOperation(operation)
 			body.Txn[idx] = retVal
+		}
+
+		for _, neighbor := range neighbors {
+			if n.ID() != neighbor && msg.Src != neighbor {
+				n.Send(neighbor, body)
+			}
 		}
 
 		res := map[string]interface{}{"type": "txn_ok", "txn": body.Txn}
