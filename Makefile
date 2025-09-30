@@ -1,5 +1,5 @@
 
-.PHONY: echo unique broadcast gcounter kafka playground
+.PHONY: echo unique broadcast gcounter kafka txn playground
 
 export GOBIN=/Users/mansishah/go/bin
 
@@ -47,7 +47,13 @@ kafka:
 # 	@(cd ./maelstrom && ./maelstrom test -w kafka --bin ~/go/bin/maelstrom-kafka --node-count 1 --concurrency 2n --time-limit 20 --rate 1000)
 # 	@echo "Passed kafka-a"
 	@(cd ./maelstrom && ./maelstrom test -w kafka --bin ~/go/bin/maelstrom-kafka --node-count 2 --concurrency 2n --time-limit 20 --rate 1000)
-	@echo "Passed kafka-b"
+
+txn:
+	@echo "Installing txn binary..."
+	@(cd ./maelstrom-txn && go install)
+	@echo "Running Maelstrom test..."
+	@(cd ./maelstrom && ./maelstrom test -w txn-rw-register --bin ~/go/bin/maelstrom-txn --node-count 1 --time-limit 20 --rate 1000 --concurrency 2n --consistency-models read-uncommitted --availability total)
+	@echo "Passed txn-a"
 
 playground:
 	@echo "Installing playground binary..."
