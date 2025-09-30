@@ -14,7 +14,7 @@ type TxnMessage struct {
 	Txn   [][]interface{} `json:"txn"`
 }
 
-var kvStore = make(map[int][]int, 0)
+var kvStore = make(map[int]int, 0)
 var kvStoreMutex = sync.RWMutex{}
 
 func processOperation(opInstruction []interface{}) []interface{} {
@@ -28,7 +28,7 @@ func processOperation(opInstruction []interface{}) []interface{} {
 	case "r":
 		values, exists := kvStore[intKey]
 		if exists {
-			opInstruction[2] = values[len(values)-1]
+			opInstruction[2] = values
 		} else {
 			opInstruction[2] = nil
 		}
@@ -39,12 +39,7 @@ func processOperation(opInstruction []interface{}) []interface{} {
 			panic("Value is invalid")
 		}
 		intValue := int(value)
-		values, exists := kvStore[intKey]
-		if exists {
-			kvStore[intKey] = append(values, intValue)
-		} else {
-			kvStore[intKey] = []int{intValue}
-		}
+		kvStore[intKey] = intValue
 
 	default:
 		panic("Invalid operation")
