@@ -52,8 +52,10 @@ txn:
 	@echo "Installing txn binary..."
 	@(cd ./maelstrom-txn && go install)
 	@echo "Running Maelstrom test..."
-	@(cd ./maelstrom && ./maelstrom test -w txn-rw-register --bin ~/go/bin/maelstrom-txn --node-count 1 --time-limit 20 --rate 1000 --concurrency 2n --consistency-models read-uncommitted --availability total)
-	@echo "Passed txn-a"
+# 	@(cd ./maelstrom && ./maelstrom test -w txn-rw-register --bin ~/go/bin/maelstrom-txn --node-count 1 --time-limit 20 --rate 1000 --concurrency 2n --consistency-models read-uncommitted --availability total)
+# 	@echo "Passed txn-a"
+	@(cd ./maelstrom && ./maelstrom test -w txn-rw-register --bin ~/go/bin/maelstrom-txn --node-count 2 --concurrency 2n --time-limit 20 --rate 1000 --consistency-models read-uncommitted)
+	@echo "Passed txn-b"
 
 playground:
 	@echo "Installing playground binary..."
